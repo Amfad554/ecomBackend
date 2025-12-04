@@ -42,7 +42,7 @@ exports.initializePayment = async (req, res) => {
             tx_ref: order_id,
             amount: totalPrice,
             currency: 'NGN',
-            redirect_url: 'http://localhost:5173/thankyou',
+            redirect_url: 'https://granduer.vercel.app/thankyou',
 
             customer: {
                 email: user.email,
