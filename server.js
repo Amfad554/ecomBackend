@@ -11,7 +11,7 @@ const app = express();
 
 app.use(
   cors({
-    origin:['http://localhost:5173','https://granduer.vercel.app/'],
+    origin:['http://localhost:5173','https://granduer.vercel.app'],
     methods:['GET', 'POST', 'PATCH', 'DELETE'],
     credentials:true
   })
