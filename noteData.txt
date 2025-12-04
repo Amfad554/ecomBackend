@@ -1,0 +1,292 @@
+******BACKEND INSTALLATION AND SETUP****
+
+
+//**DATABASE SETUP
+1***Install pgAdmin and Create a Database
+
+    Download and install pgAdmin and PostgreSQL.  
+
+    Create a new local database (e.g., ecome_db).  
+
+    Note your database credentials (user, password, port, and database name). 
+    We used hosted NeonDb
+     
+
+
+2***Install Prisma and Prisma Client
+
+    Run npm install prisma --save-dev  
+
+    Run npm install @prisma/client  
+
+    Initialize Prisma in your project using:  
+
+    npx prisma init (This will create a prisma folder with a schema.prisma file and an .env file.)  
+
+
+3***Configure Database Connection
+
+    In your .env file, set your PostgreSQL connection string:  
+
+    DATABASE_URL="postgresql://postgres:yourpassword@localhost:5432/ecome_db?schema=public"  
+
+
+4***Define Your Schema
+
+    Open prisma/schema.prisma and define your models (e.g., User, Product, Category).  
+
+    Before defining models, add this generator block at the top of your schema file:  
+
+    generator client {
+    provider = "prisma-client-js"
+    previewFeatures = ["clientExtensions"]
+    output = "node_modules/.prisma/client"
+    }
+
+    Explanation:  
+    This generator block tells Prisma how and where to create the Prisma Client — which is the tool your backend will use to    interact with your database.  
+    - *provider = "prisma-client-js"* means Prisma will generate a JavaScript client for your Node.js project.  
+    - *previewFeatures = ["clientExtensions"]* enables Prisma’s latest client extensions feature, giving you access to new    capabilities and future enhancements.  
+    - *output = "node_modules/.prisma/client"* specifies the path where the Prisma Client files will be generated.  
+    This is the recommended default location for Prisma v6, ensuring that your project can easily import the client using:  
+    import { PrismaClient } from "@prisma/client"  
+
+    Without this generator section, Prisma would not know how to create or locate the Prisma Client, and your backend would be  unable to query the database.  
+
+
+    Example:  
+
+    model User {
+    id        Int      @id @default(autoincrement())
+    name      String
+    email     String   @unique
+    createdAt DateTime @default(now())
+    }  
+
+5***Run Database Migration
+
+    Use Prisma Migrate to create and apply your schema:  
+
+    npx prisma migrate dev --name init  
+
+
+6***Generate Prisma Client
+
+    Prisma Client allows your backend to interact with the database:  
+
+    npx prisma generate  
+
+
+7***Test the Connection
+
+    You can test by running:  
+
+    npx prisma studio  
+
+T   his opens a local database GUI to verify your data models.
+
+
+
+
+//*EXPRESS SETUP
+
+tags, size, colors []
+1***Packages Installation: install express, nodemon, dotenv
+
+    npm install express dotenv
+    npm install --save-dev nodemon
+
+
+    express → framework for building your server and APIs.
+
+    dotenv → loads environment variables from .env file.
+
+    nodemon → automatically restarts your server during development when files change.
+// index.js
+
+// *** STEP 1: Import required packages ***
+
+// Import Express framework
+const express = require("express");
+
+// Import dotenv to load environment variables from .env file
+const dotenv = require("dotenv");
+
+
+
+// *** STEP 2: Configure dotenv ***
+
+// This line loads all variables from the .env file into process.env
+dotenv.config();
+
+
+
+// *** STEP 3: Initialize the Express app ***
+
+// Create an instance of an Express application
+const app = express();
+
+
+
+// *** STEP 4: Middleware setup ***
+
+// express.json() is a built-in middleware that parses incoming JSON requests. It makes the body of POST/PUT requests available in req.body 
+
+
+
+
+// express.urlencoded()) Parse form data (application/x-www-form-urlencoded)
+
+
+
+
+
+// *** STEP 5: Define the port from .env or default to 5000
+const PORT = process.env.PORT || 5000;
+
+// Start the server and listen on the defined port
+// This is where your server "lives" — it begins accepting requests here.
+app.listen(PORT, () => {
+  console.log(✅ Server is running and listening on port ${PORT});
+});
+
+
+
+****Registering User*******
+
+****Controller
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+    1. destructure all feilds from req.body
+    2. chaek if all feilsds are being passed
+    3. Validate email using  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    4. Validate password****
+        * const passwordRegex = /^[A-Z](?=.*[\W_])/;
+        *Install bcrypt and use it in hasing the password by salting and hasing
+    5. Handle image upload using cloudinary**** 
+        *install cloudinaryv2()
+            npm install cloudinary
+        *set up cloudinary in config 
+        *install multer and setup multer. ()
+            npm install multer
+        *setup multer in middleware/uploads 
+            Notes / clarifications:
+
+            memoryStorage() keeps files in RAM as buffers. It does not push them to the database directly—you still need to handle that in your route/controller.
+
+            uploads is the Multer middleware, which you attach to routes to parse incoming file uploads (req.file for single, req.files for multiple).
+    6.compare password and confirmpasswor
+    7.check if user already exist
+    8.register user if not exist
+    9. send verification link via nodemailer
+    10. Send respons message
+
+
+
+****Login User*******
+   1. destructure all feilds from req.body
+    2. chaek if all feilsds are being passed
+    3. compare password with database password using bcrypt
+    4. If password matches, then generate a token.(this will be a utility function)
+    5. pass the token to headers
+    6.send response
+
+
+***Add To Cart****
+   // parse inputs
+  // Step 1: Ensure user has a cart by creating one  or find the cart using userId
+ // Step 2: Find the product
+// Step 3: Check if product already in user's cart
+     (we check by the composite unique key: productid_cartid)
+// Step 5: Add product to cart
+
+
+
+***Update Cart****
+  //1.Find the user's cart
+ //2.Ensure product exists (optional but recommended)
+//3.Find the cart item (product to be updated)
+//4.If quantity is provided and <= 0 delete the item
+//5.Build update payload — include only provided fields to avoid wiping values
+//6.If no fields provided -> nothing to update
+//7. Update and return the updated item (include product for front-end convenience)
+
+
+**Get Cart**
+// 1. Find user's cart
+   // 2. If no cart found, return empty
+
+
+
+
+//Authentification and Protected routes***
+****Create an auth middelware to check if req is comming with a valid token(a valid token wil always come from a valid user because it is the token you pass to them upon login). This makes the req user avalabale to all protected routes middleware
+
+***steps for auth(Protected route)
+    1 destructure token from header or cookies
+    2 check if the destructured token is existing and throw a response if its not
+    3 if the token is present then add it to the request user so that all the passed user data will be stored in req.user
+    4 pass compiling or action to the next middleware or server function
+    5 catch any error with 403 status code ()
+
+****steps for isAdmin(protected route)
+    1 check if req.user is has a value i.e is not undefined
+    2 destructure user role from req.user which should have been provided by auth.(This means, auth has to come before this middleware )
+    3 check if the user role is admin and respond 403 response if not admin
+    4 next
+
+***Steps for Dashboar protectd route
+    1 Destructure value from params eg id or uuid
+    2 check if the value is same with that of req user 
+    3 if its not throw a 403 reponse error 
+    4 next
+
+
+
+**Steps for payment**
+1. Destructure email from reqbody 
+2. Get the user
+3. Get users cart
+4. Get the actual items in cart
+5. Calculate total
+6. Create Flutterwave Payload
+
+   const payload = {
+      tx_ref: uuidv4(),
+      amount: totalAmount,
+      currency: 'NGN',
+      redirect_url: 'https://your-app.com/payment-success',
+
+      customer: {
+        email: user.email,
+        name: user.name,
+        phonenumber: user.phone
+      },
+
+      meta: {
+        cartitems,
+        userId: user.id
+      },
+
+      customizations: {
+        title: 'MyShop Checkout',
+        description: 'Order Payment'
+      }
+    }
+
+    7. Request Payment Link (https://api.flutterwave.com/v3/payments)
+    8. Send link to frontend
+
+
+
+
+    **Verify payment*
+    1. Destructure email from reqbody 
+    2. transaction_id, orderId, email
+    3. chek if any feild is missing
+    4. Verify payment with Flutterwave (https://api.flutterwave.com/v3/transactions/${transaction_id}/verify)
+    5. Find user so you can check for duplicate receipt
+    6. check for duplicate receipt using userid
+    7. Create receipt

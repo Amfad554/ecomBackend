@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id           Int           @id @default(autoincrement())
+  name         String
+  description  String
+  price        Int
+  currency     String
+  sizes        String[]
+  defaultSize  String
+  colors       String[]
+  defaultColor String
+  bestSeller   Boolean
+  image        String
+  subcategory  String
+  rating       Int
+  discount     Int
+  newArrival   Boolean
+  tags         String[]
+  categoryId   Int
+  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  Productcart  ProductCart[]
+  receiptItems ReceiptItem[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  firstname String
+  lastname  String
+  email     String   @unique
+  phone     String
+  image     String?
+  role      Role     @default(USER)
+  address   String
+  password  String
+  createdAt DateTime @default(now())
+  uuid      String   @unique @default(uuid()) @db.Uuid
+  Cart      Cart?
+}
+
+model Category {
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  product Product[]
+}
+
+model Cart {
+  id          Int           @id @default(autoincrement())
+  userid      Int           @unique
+  user        User          @relation(fields: [userid], references: [id], onDelete: Cascade)
+  Productcart ProductCart[]
+}
+
+model ProductCart {
+  productid Int
+  product   Product @relation(fields: [productid], references: [id], onDelete: Cascade)
+  cartid    Int
+  cart      Cart    @relation(fields: [cartid], references: [id], onDelete: Cascade)
+
+  selectedcolor String?
+  selectedsize  String?
+  quantity      Int     @default(1)
+
+  @@unique([productid, cartid])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Receipt {
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  orderId       String        @unique
+  name          String
+  email         String        @unique
+  phone         String
+  amount        Int
+  transactionId String
+  status        String
+  createdAt     DateTime      @default(now())
+  receiptItems  ReceiptItem[]
+}
+
+model ReceiptItem {
+  id        Int     @id @default(autoincrement())
+  receiptId Int
+  name      String
+  image     String
+  price     Int
+  quantity  Int
+  total     Int
+  productId Int
+  receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade )
+
+  @@unique([productId, receiptId])
+}
