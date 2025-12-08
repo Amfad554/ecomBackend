@@ -1,0 +1,126 @@
+Swagger (now part of the OpenAPI Specification) is a framework for describing REST APIs. With Swagger, you write a definition (usually in JSON or YAML) that explains:
+
+What routes your API has
+
+The request body format
+
+Required parameters
+
+Expected responses
+
+Data models
+
+Authentication methods
+
+When integrated with Swagger UI, it automatically generates an interactive API documentation page.
+
+
+
+
+1.Install swagger-jsdoc  and   swagger-ui-express
+**swagger-jsdoc: Reads the comment blocks inside your routes and generates a Swagger/OpenAPI JSON spec.
+**swagger-ui-express: displays that spec in a beautiful UI using /api-docs.
+
+ npm i swagger-jsdoc swagger-ui-express
+
+
+2.past the below code in swagger/swagger.js
+
+
+import swaggerJsdoc from "swagger-jsdoc";
+import swaggerUi from "swagger-ui-express";
+
+const options = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "My API Documentation",
+      version: "1.0.0",
+      description: "API documentation for my Express backend",
+    },
+    servers: [
+      {
+        url: "http://localhost:5000", // Change to your real server URL
+      },
+    ],
+  },
+
+  // Path where your route files are located
+  apis: ["./routes/*.js"],
+};
+
+const swaggerSpec = swaggerJsdoc(options);
+
+export { swaggerUi, swaggerSpec };
+
+
+3. import and use swaggerUi, swaggerSpec  in app and use 
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+
+4. add swagger comments in each routes
+
+//example swager template for get route
+/**
+ * @swagger
+ * /your-path-here:
+ *   get:
+ *     summary: 
+ *     tags:
+ *       - 
+ *     parameters:
+ *       - in: 
+ *         name:
+ *         schema:
+ *           type:
+ *         required:
+ *         description:
+ *     responses:
+ *       200:
+ *         description: 
+ */
+
+
+ //example swager template for post route
+
+ /**
+ * @swagger
+ * /your-path-here:
+ *   post:
+ *     summary: 
+ *     tags:
+ *       - 
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               exampleField:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 
+ */
+
+
+
+//Route with Path Params
+
+/**
+ * @swagger
+ * /your-path-here/{id}:
+ *   put:
+ *     summary: 
+ *     tags:
+ *       - 
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 
+ */
