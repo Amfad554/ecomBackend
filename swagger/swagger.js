@@ -1,5 +1,5 @@
-const swaggerJsdoc = require  ('swagger-jsdoc');
-const swaggerUi  = require ('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
 
 const options = {
   definition: {
@@ -11,13 +11,11 @@ const options = {
     },
     servers: [
       {
-        url: "https://ecombackend-cqbc.onrender.com", // Change to your real server URL
+        url: "https://ecombackend-cqbc.onrender.com", 
       },
     ],
   },
-
-  // Path where your route files are located
-  apis: ["./routers/*.js"],
+  apis: ["./routers/*.js"], 
 };
 
 const swaggerSpec = swaggerJsdoc(options);
