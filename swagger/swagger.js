@@ -14,6 +14,15 @@ const options = {
         url: "https://ecombackend-cqbc.onrender.com", 
       },
     ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        }
+      }
+    }
   },
   apis: ["./routers/*.js"], 
 };
