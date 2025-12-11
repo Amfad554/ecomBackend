@@ -1,8 +1,7 @@
 const express = require('express');
 const userRouter = express.Router();
-const { registerUser, loginUser } = require('../controllers/userController');
+const { registerUser, loginUser, verifyEmail, } = require('../controllers/userController'); 
 const Uploads = require('../middlewares/uploads');
-const { default: VerifyEmail } = require('../../ecommerce/ecommerce/src/pages/verifyemail');
 
 /**
 * @swagger
@@ -65,7 +64,7 @@ userRouter.post("/registerUser", Uploads.single("image"), registerUser);
 * @swagger
 * /loginUser:
 *   post:
-*     summary: 
+*     summary: User login
 *     tags:
 *       - User
 *     requestBody:
@@ -74,17 +73,52 @@ userRouter.post("/registerUser", Uploads.single("image"), registerUser);
 *         application/json:
 *           schema:
 *             type: object
+*             required:
+*               - email
+*               - password
 *             properties:
 *               email:
 *                 type: string
+*                 format: email
+*                 description: User's email address
 *               password:
 *                 type: string
+*                 format: password
+*                 description: User's password
 *     responses:
 *       200:
 *         description: Login successful
+*       401:
+*         description: Invalid credentials
 */
 userRouter.post("/loginUser", loginUser);
-userRouter.post("/verifyemail", VerifyEmail);
+
+/**
+* @swagger
+* /verifyemail:
+*   post:
+*     summary: Verify user email with token
+*     tags:
+*       - User
+*     requestBody:
+*       required: true
+*       content:
+*         application/json:
+*           schema:
+*             type: object
+*             required:
+*               - token
+*             properties:
+*               token:
+*                 type: string
+*                 description: Email verification token
+*     responses:
+*       200:
+*         description: Email verified successfully
+*       400:
+*         description: Invalid or expired token
+*/
+userRouter.post("/verifyemail", verifyEmail);
 
 
 module.exports = userRouter;
