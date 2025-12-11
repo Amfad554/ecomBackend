@@ -164,6 +164,9 @@ exports.loginUser = async (req, res) => {
         expiresIn: '15m'
       });
 
+      console.log("token", token);
+      
+
       const verificationLink = `https://granduer.vercel.app/verifyemail/${token}`;
       await sendVerification(user.email, verificationLink);
 
