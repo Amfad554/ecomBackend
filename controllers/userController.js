@@ -72,7 +72,7 @@ exports.registerUser = async (req, res) => {
         address,
         password: hashedPassword,
         image: imageUrl || null,
-        isVerified: false              // <-- IMPORTANT (MISSING)
+        isVerified: false           
       }
     });
 
@@ -107,46 +107,27 @@ exports.registerUser = async (req, res) => {
 
 
 exports.verifyEmail = async (req, res) => {
+  const { token } = req.body
   try {
-    const { token } = req.body;
-
-    if (!token) {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    if (!decoded) {
       return res.status(400).json({
         success: false,
-        message: "No token provided",
-      });
+        message: 'Verification failed! No token provided'
+      })
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const user = await prisma.user.findUnique({
-      where: { email: decoded.email }
-    });
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    await prisma.user.update({
-      where: { email: decoded.email },
-      data: { isVerified: true }
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Email verified successfully",
-    });
-
+    return res
+      .status(200)
+      .json({ success: true, message: 'Email Verified successfully!' })
   } catch (error) {
-    return res.status(400).json({
+    console.log(error.message)
+    return res.status(500).json({
       success: false,
-      message: "Invalid or expired token",
-    });
+      message: 'Internal server error. Please try later!'
+    })
   }
-};
+}
 
 
 
@@ -177,6 +158,8 @@ exports.loginUser = async (req, res) => {
     }
 
     if (!user.isVerified) {
+      console.log("not verified!");
+      
       const token = jwt.sign({ email }, process.env.JWT_SECRET, {
         expiresIn: '15m'
       });
