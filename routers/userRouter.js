@@ -2,6 +2,7 @@ const express = require('express');
 const userRouter = express.Router();
 const { registerUser, loginUser } = require('../controllers/userController');
 const Uploads = require('../middlewares/uploads');
+const { default: VerifyEmail } = require('../../ecommerce/ecommerce/src/pages/verifyemail');
 
 /**
 * @swagger
@@ -83,6 +84,7 @@ userRouter.post("/registerUser", Uploads.single("image"), registerUser);
 *         description: Login successful
 */
 userRouter.post("/loginUser", loginUser);
+userRouter.post("/verifyemail", VerifyEmail);
 
 
 module.exports = userRouter;

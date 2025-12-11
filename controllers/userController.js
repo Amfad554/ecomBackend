@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const uploadToCloudinary = require('../utils/uploadToCloudinary');
 const { sendVerification } = require("../utils/emailVerification");
 const generateToken = require("../utils/generateToken");
+const jwt = require("jsonwebtoken");   // <-- FIXED (you forgot this)
 
 exports.registerUser = async (req, res) => {
   const { firstname, lastname, email, phone, address, password, confirmpassword } = req.body
@@ -30,40 +31,30 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ success: false, message: "Missing confirm password field!" })
     }
 
-
-    //validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
     if (!emailRegex.test(email)) {
       return res.status(400).json({ success: false, message: "Invalid email format!" });
     }
 
-
-
-    // Validate password (must start with uppercase and include a special character)
     const passwordRegex = /^[A-Z](?=.*[\W_])/;
-
     if (!passwordRegex.test(password)) {
       return res.status(400).json({
         success: false,
-        message:
-          "Password must start with an uppercase letter and include at least one special character.",
+        message: "Password must start with an uppercase letter and include at least one special character.",
       });
     }
 
     if (password !== confirmpassword) {
       return res.status(400).json({ success: false, message: "Password and confirm password do not match!" });
     }
+
     const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    let imageUrl
-
+    let imageUrl;
     if (req.file) {
       imageUrl = await uploadToCloudinary(req.file.buffer, "image", "Users");
     }
-
-    //check if user already exists
 
     const existingUser = await prisma.user.findUnique({
       where: { email }
@@ -81,39 +72,95 @@ exports.registerUser = async (req, res) => {
         address,
         password: hashedPassword,
         image: imageUrl || null,
+        isVerified: false              // <-- IMPORTANT (MISSING)
       }
     });
+
     if (!newUser) {
       return res.status(400).json({ success: true, message: "User creation failed!", data: newUser });
     }
 
-    const verificationLink = "https://www.google.com/";
+    // FIXED: JWT + link format
+    const token = jwt.sign({ email }, process.env.JWT_SECRET, {
+      expiresIn: '15m'
+    });
+
+    const verificationLink = `https://granduer.vercel.app/verifyemail/${token}  `;
+
     await sendVerification(newUser.email, verificationLink);
 
-    return res.status(201).json({ success: true, message: "User created successfully!", data: newUser });
+    return res.status(201).json({
+      success: true,
+      message: "User created successfully!",
+      data: newUser
+    });
 
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Internal server error, please try again later!", error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error, please try again later!",
+      error: error.message
+    });
   }
 };
+
+
+
+exports.verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "No token provided",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await prisma.user.findUnique({
+      where: { email: decoded.email }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await prisma.user.update({
+      where: { email: decoded.email },
+      data: { isVerified: true }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully",
+    });
+
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid or expired token",
+    });
+  }
+};
+
 
 
 exports.loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-    //check all feilds are being passed
+
     if (!email) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email feild is not provided!" });
+      return res.status(400).json({ success: false, message: "Email feild is not provided!" });
     }
     if (!password) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Password feild is not provided!" });
+      return res.status(400).json({ success: false, message: "Password feild is not provided!" });
     }
 
-    //check for user
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
@@ -123,17 +170,26 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    //validate password
     const validatePassword = await bcrypt.compare(password, user.password);
 
     if (!validatePassword) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Password is incorrect!" });
+      return res.status(400).json({ success: false, message: "Password is incorrect!" });
     }
 
+    if (!user.isVerified) {
+      const token = jwt.sign({ email }, process.env.JWT_SECRET, {
+        expiresIn: '15m'
+      });
 
-    //generate token
+      const verificationLink = `https://granduer.vercel.app/verifyemail/${token}`;
+      await sendVerification(user.email, verificationLink);
+
+      return res.status(200).json({
+        success: false,
+        message: "Please check your email to verify your account."
+      });
+    }
+
     const token = generateToken(user);
     if (!token) {
       return res.status(400).json({
@@ -142,9 +198,12 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    return res
-      .status(200)
-      .json({ success: true, message: "Login successful", token });
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token
+    });
+
   } catch (error) {
     console.log("error", error.message);
 
@@ -153,4 +212,4 @@ exports.loginUser = async (req, res) => {
       message: "internal server error please try later!",
     });
   }
-};  
+};
