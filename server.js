@@ -8,6 +8,8 @@ const paymentRouter = require("./routers/paymentRouter");
 const cors = require("cors");
 const { swaggerUi, swaggerSpec } = require("./swagger/swagger");
 dotenv.config();
+console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+console.log('JWT exists:', !!process.env.JWT_SECRET_KEY);
 
 const app = express();
 
