@@ -81,7 +81,7 @@ exports.registerUser = async (req, res) => {
     }
 
     // FIXED: JWT + link format
-    const token = jwt.sign({ email }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ email }, process.env.JWT_SECRET_KEY, {
       expiresIn: '15m'
     });
 
@@ -107,27 +107,48 @@ exports.registerUser = async (req, res) => {
 
 
 exports.verifyEmail = async (req, res) => {
-  const { token } = req.body
+  const { token } = req.body;
+
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
-    if (!decoded) {
+    if (!token) {
       return res.status(400).json({
         success: false,
-        message: 'Verification failed! No token provided'
-      })
+        message: "No token provided!"
+      });
     }
 
-    return res
-      .status(200)
-      .json({ success: true, message: 'Email Verified successfully!' })
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+
+    const user = await prisma.user.findUnique({
+      where: { email: decoded.email }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found!"
+      });
+    }
+
+    // Update user
+    await prisma.user.update({
+      where: { email: user.email },
+      data: { isVerified: true }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully!"
+    });
+
   } catch (error) {
-    console.log(error.message)
+    console.log("Verify error:", error.message);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error. Please try later!'
-    })
+      message: "Internal server error. Please try again later."
+    });
   }
-}
+};
 
 
 
@@ -159,15 +180,16 @@ exports.loginUser = async (req, res) => {
 
     if (!user.isVerified) {
       console.log("not verified!");
-      
-      const token = jwt.sign({ email }, process.env.JWT_SECRET, {
+      const key =  process.env.JWT_SECRET_KEY
+            console.log("key", key);
+      const token = jwt.sign({ email }, process.env.JWT_SECRET_KEY, {
         expiresIn: '15m'
       });
 
-      console.log("token", token);
+
       
 
-      const verificationLink = `https://granduer.vercel.app/verifyemail/${token}`;
+      const verificationLink = `http://localhost:5173/verifyemail/${token}`;
       await sendVerification(user.email, verificationLink);
 
       return res.status(200).json({
