@@ -103,25 +103,13 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// --- DELETE USER ---
-exports.deleteUser = async (req, res) => {
-  try {
-    await prisma.user.delete({
-      where: { id: req.params.id }
-    });
-    res.json({ success: true, message: "User deleted" });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Delete failed" });
-  }
-};
-
 // --- UPDATE ROLE ---
 exports.updateRole = async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
   try {
     const updatedUser = await prisma.user.update({
-      where: { id: id },
+      where: { id: Number(id) }, // <--- CHANGE THIS
       data: { role: role },
     });
     return res.status(200).json({ success: true, user: updatedUser });
@@ -130,6 +118,17 @@ exports.updateRole = async (req, res) => {
   }
 };
 
+// --- DELETE USER ---
+exports.deleteUser = async (req, res) => {
+  try {
+    await prisma.user.delete({
+      where: { id: Number(req.params.id) } // <--- CHANGE THIS
+    });
+    res.json({ success: true, message: "User deleted" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Delete failed" });
+  }
+};
 // --- UPDATE PROFILE ---
 exports.updateProfile = async (req, res) => {
   const { id } = req.params;

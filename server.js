@@ -12,11 +12,10 @@ console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
 console.log('JWT exists:', !!process.env.JWT_SECRET_KEY);
 
 const app = express();
-
 app.use(
   cors({
     origin: ['http://localhost:5173', 'https://granduer.vercel.app'],
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT'], // <--- ADD PUT HERE
     credentials: true
   })
 );
