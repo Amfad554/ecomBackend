@@ -140,12 +140,13 @@ exports.updateProfile = async (req, res) => {
       updateData.password = await bcrypt.hash(newPass, salt);
     }
     const updatedUser = await prisma.user.update({
-      where: { id: id },
+      where: { id: Number(id) }, // <--- CHANGE THIS to Number(id)
       data: updateData,
       select: { id: true, name: true, email: true, role: true }
     });
     res.status(200).json({ success: true, user: updatedUser });
   } catch (error) {
+    console.error("Update Profile Error:", error); // Helpful for Render logs
     res.status(500).json({ success: false, message: "Update failed" });
   }
 };
