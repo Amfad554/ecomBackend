@@ -1,16 +1,21 @@
 // routes/userRoutes.js
-const express = require('express'); // 1. Import Express
-const router = express.Router();    // 2. Create the router object
-const userController = require('../controllers/userController'); // 3. Import your controller
+const express = require('express');
+const router = express.Router();
+const userController = require('../controllers/userController');
+const multer = require('multer'); // 1. Import multer
 
-router.post('/register', userController.registerUser);
+// 2. Initialize multer (using memory storage so we get req.file.buffer)
+const upload = multer({ storage: multer.memoryStorage() });
+
+// 3. Add upload.single('image') to the register route
+// The string 'image' MUST match the key used in your frontend: formData.append("image", ...)
+router.post('/register', upload.single('image'), userController.registerUser);
+
 router.post('/login', userController.loginUser);
 router.post('/verifyemail', userController.verifyEmail);
 router.get('/all', userController.getAllUsers);
 router.delete('/delete/:id', userController.deleteUser);
 router.put('/update-role/:id', userController.updateRole);
-
-// Profile update route
 router.put('/update-profile/:id', userController.updateProfile); 
 
 module.exports = router;
