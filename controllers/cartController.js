@@ -44,10 +44,11 @@ exports.addToCart = async (req, res) => {
             });
         }
 
+        // ✅ Use direct field assignment instead of connect
         const addedCart = await prisma.productCart.create({
             data: {
-                Product: { connect: { id: parsedproductid } },  // ✅ capital P
-                Cart: { connect: { id: existingCart.id } },      // ✅ capital C
+                productid: parsedproductid,
+                cartid: existingCart.id,
                 selectedcolor: color || null,
                 selectedsize: size || null,
                 quantity: quantity || 1,
@@ -61,11 +62,12 @@ exports.addToCart = async (req, res) => {
             });
         }
 
+        // ✅ ProductCart and Product match schema exactly
         const userCart = await prisma.cart.findUnique({
             where: { userid: parseduserid },
             include: {
-                ProductCart: {                  // ✅ capital P and C
-                    include: { Product: true }, // ✅ capital P
+                ProductCart: {
+                    include: { Product: true },
                 },
             },
         });
@@ -75,11 +77,12 @@ exports.addToCart = async (req, res) => {
             message: "Item added to cart successfully",
             data: userCart,
         });
+
     } catch (error) {
         console.log("error", error.message);
         res.status(500).json({
             success: false,
-            message: "Internal server error, please try again later!",
+            message: error.message,
         });
     }
 };
@@ -151,14 +154,14 @@ exports.updateCart = async (req, res) => {
                 },
             },
             data: payload,
-            include: { Product: true }, // ✅ capital P
         });
 
+        // ✅ ProductCart and Product match schema exactly
         const updatedUserCart = await prisma.cart.findUnique({
             where: { userid: parseduserid },
             include: {
-                ProductCart: {                  // ✅ capital P and C
-                    include: { Product: true }, // ✅ capital P
+                ProductCart: {
+                    include: { Product: true },
                 },
             },
         });
@@ -173,7 +176,7 @@ exports.updateCart = async (req, res) => {
         console.log("error", error.message);
         res.status(500).json({
             success: false,
-            message: "Internal server error, please try again later!",
+            message: error.message,
         });
     }
 };
@@ -225,11 +228,12 @@ exports.deleteCart = async (req, res) => {
                 data: { quantity: existingCartItem.quantity - 1 },
             });
 
+            // ✅ ProductCart and Product match schema exactly
             const updatedUserCart = await prisma.cart.findUnique({
                 where: { userid: parseduserid },
                 include: {
-                    ProductCart: {                  // ✅ capital P and C
-                        include: { Product: true }, // ✅ capital P
+                    ProductCart: {
+                        include: { Product: true },
                     },
                 },
             });
@@ -250,11 +254,12 @@ exports.deleteCart = async (req, res) => {
             },
         });
 
+        // ✅ ProductCart and Product match schema exactly
         const deletedUserCart = await prisma.cart.findUnique({
             where: { userid: parseduserid },
             include: {
-                ProductCart: {                  // ✅ capital P and C
-                    include: { Product: true }, // ✅ capital P
+                ProductCart: {
+                    include: { Product: true },
                 },
             },
         });
@@ -269,7 +274,7 @@ exports.deleteCart = async (req, res) => {
         console.log("error", error.message);
         res.status(500).json({
             success: false,
-            message: "Internal server error, please try again later!",
+            message: error.message,
         });
     }
 };
@@ -283,8 +288,8 @@ exports.getCart = async (req, res) => {
         const userCart = await prisma.cart.findUnique({
             where: { userid: parseduserid },
             include: {
-                ProductCart: {                  // ✅ capital P and C
-                    include: { Product: true }, // ✅ capital P
+                ProductCart: {
+                    include: { Product: true },
                 },
             },
         });
@@ -301,11 +306,12 @@ exports.getCart = async (req, res) => {
             message: "User cart fetched successfully",
             data: userCart,
         });
+
     } catch (error) {
         console.log("error", error.message);
         res.status(500).json({
             success: false,
-            message: "Internal server error!",
+            message: error.message,
         });
     }
 };
