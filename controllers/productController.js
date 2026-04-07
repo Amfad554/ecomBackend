@@ -57,13 +57,21 @@ exports.createProduct = async (req, res) => {
 
         const newProduct = await prisma.product.create({
             data: {
-                ...requestFields,
+                name,
+                description,
                 price: parsedPrice,
+                currency,
+                sizes,
+                defaultSize,
+                colors,
+                defaultColor,
+                bestSeller: bestSeller === 'true' || bestSeller === true,
+                newArrival: newArrival === 'true' || newArrival === true,
+                subcategory,
                 rating: parsedRating,
                 discount: parsedDiscount,
+                tags,
                 categoryId: parsedCategoryId,
-                bestSeller: true,
-                newArrival: true,
                 image: imageUrl,
             },
         });
