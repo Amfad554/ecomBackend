@@ -129,8 +129,14 @@ exports.verifyPayment = async (req, res) => {
         }
 
         const userCart = await prisma.cart.findUnique({
-            where: { userid: id },
-            include: { Productcart: { include: { product: true } } }
+            where: { userid: userId },
+            include: {
+                ProductCart: { // Change 'c' to 'C'
+                    include: {
+                        product: true
+                    }
+                }
+            },
         });
 
         if (!userCart) {
