@@ -16,21 +16,26 @@ exports.initializePayment = async (req, res) => {
             return res.status(400).json({ success: false, message: "User does not exist!" });
         }
 
-        // Safely handle the ID (Remove parseInt if your DB uses Strings/UUIDs)
-        const userId = typeof user.id === 'string' ? parseInt(user.id) : user.id;
+        const userId = user.id;
 
         const userCart = await prisma.cart.findUnique({
             where: { userid: userId },
-            include: { Productcart: { include: { product: true } } },
+            // Matches your schema: ProductCart (capital C) and Product (capital P)
+            include: {
+                ProductCart: {
+                    include: { Product: true }
+                }
+            },
         });
 
-        if (!userCart || userCart.Productcart.length === 0) {
-            return res.status(400).json({ success: false, message: "Cart is empty or does not exist!" });
+        if (!userCart || userCart.ProductCart.length === 0) {
+            return res.status(400).json({ success: false, message: "Cart is empty!" });
         }
 
-        const cartItems = userCart.Productcart;
+        // Logic uses ProductCart and Product to match the 'include' above
+        const cartItems = userCart.ProductCart;
         const totalPrice = cartItems.reduce(
-            (acc, item) => acc + (item.product?.price || 0) * (item.quantity || 1),
+            (acc, item) => acc + (item.Product?.price || 0) * (item.quantity || 1),
             0
         );
 
@@ -42,7 +47,7 @@ exports.initializePayment = async (req, res) => {
             customer: {
                 email: user.email,
                 name: `${user.firstname} ${user.lastname}`,
-                phonenumber: user.phone || "0000000000" // Flutterwave sometimes requires this
+                phonenumber: user.phone || "0000000000"
             },
             meta: { userId: user.id, order_id },
             customizations: { title: 'Granduer', description: 'Payment for items in cart!' }
@@ -60,7 +65,6 @@ exports.initializePayment = async (req, res) => {
         const data = await response.json();
 
         if (!response.ok) {
-            console.error("Flutterwave Error Details:", data); // THIS WILL SHOW IN RENDER LOGS
             return res.status(response.status).json({
                 success: false,
                 message: data.message || "Flutterwave initialization failed"
@@ -97,84 +101,34 @@ exports.verifyPayment = async (req, res) => {
 
         const data = await response.json();
 
-        // validate response
-        if (!response.ok || data.status !== "success") {
-            return res.status(400).json({
-                success: false,
-                message: data.message || "Payment verification failed"
-            });
+        if (!response.ok || data.status !== "success" || data.data.status !== "successful") {
+            return res.status(400).json({ success: false, message: "Payment verification failed" });
         }
 
-        // Ensure data.data exists before checking status
-        if (!data.data || data.data.status !== "successful") {
-            return res.status(400).json({
-                success: false,
-                message: "Payment not successful",
-                paymentStatus: data?.data?.status
-            });
-        }
+        const id = Number(data.data.meta.userId);
+        const order_id = data.data.meta.order_id;
 
-        const id = Number(data?.data?.meta?.userId);
-        const order_id = data?.data?.meta?.order_id;
-
-        const amount = data?.data?.amount;
-        const status = data?.data?.status;
-
-        console.log("id", id);
-
-        // find user
-        const user = await prisma.user.findUnique({ where: { id } });
-        if (!user) {
-            return res.status(400).json({ success: false, message: "User does not exist in Database" });
-        }
-
+        // 1. Get the cart using corrected relation names
         const userCart = await prisma.cart.findUnique({
-            where: { userid: userId },
+            where: { userid: id },
             include: {
-                ProductCart: { // Change 'c' to 'C'
-                    include: {
-                        product: true
-                    }
-                }
+                ProductCart: { include: { Product: true } }
             },
         });
 
-        if (!userCart) {
-            return res.status(400).json({ success: false, message: "Usercart does not exist in Database" });
-        }
-
-        // check for existing receipt
+        // 2. Check for existing receipt using corrected relation name 'ReceiptItem'
         const existingReceipt = await prisma.receipt.findUnique({
-            where: { orderId: order_id }, include: { receiptItems: true }
+            where: { orderId: order_id },
+            include: { ReceiptItem: true }
         });
 
         if (existingReceipt) {
-
-            // const cartItems = await prisma.receiptItem.createMany({
-            //     data: userCart.Productcart.map(item => ({
-            //         receiptId: existingReceipt.id,
-            //         name: item.product.name,
-            //         price: item.product.price,
-            //         image: item.product.image,
-            //         quantity: item.quantity,
-            //         total: item.quantity * item.product.price,
-            //         productId: item.productid
-            //     }))
-            // });
-
-            const updatedReciept = await prisma.receipt.findUnique({
-                where: { orderId: order_id },
-                include: { receiptItems: true }
-            })
-            return res.status(200).json({
-                success: true,
-                message: "Payment already verified",
-                data: updatedReciept,
-
-
-            });
+            return res.status(200).json({ success: true, message: "Payment already verified", data: existingReceipt });
         }
 
+        const user = await prisma.user.findUnique({ where: { id } });
+
+        // 3. Create Receipt
         const newReceipt = await prisma.receipt.create({
             data: {
                 orderId: order_id,
@@ -182,37 +136,26 @@ exports.verifyPayment = async (req, res) => {
                 name: `${user.firstname} ${user.lastname}`,
                 email: user.email,
                 phone: user.phone,
-                amount: amount,
+                amount: data.data.amount,
                 transactionId: transaction_id,
-                status: status
+                status: data.data.status
             }
         });
 
-        if (!newReceipt) {
-            return res.status(400).json({ success: false, message: "Unable to generate receipt" });
-        }
-        const cartItems = await prisma.receiptItem.createMany({
-            data: userCart.Productcart.map(item => ({
+        // 4. Create ReceiptItems using ProductCart and Product
+        await prisma.receiptItem.createMany({
+            data: userCart.ProductCart.map(item => ({
                 receiptId: newReceipt.id,
-                name: item.product.name,
-                price: item.product.price,
-                image: item.product.image,
+                name: item.Product.name,
+                price: item.Product.price,
+                image: item.Product.image,
                 quantity: item.quantity,
-                total: item.quantity * item.product.price,
-                productId: item.productid
+                total: item.quantity * item.Product.price,
+                productId: item.productid // productid (lowercase i) from your schema
             }))
         });
 
-        // const updatedReceipt = await prisma.receipt.findUnique({
-        //     where: { orderId: order_id },
-        //     include: { receiptItems: true }
-        // });
-
-        return res.status(200).json({
-            success: true,
-            message: "Payment successful",
-            data: newReceipt,
-        });
+        return res.status(200).json({ success: true, message: "Payment successful", data: newReceipt });
 
     } catch (error) {
         console.error("Error verifying payment:", error.message);
