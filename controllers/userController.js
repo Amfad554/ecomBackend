@@ -8,27 +8,44 @@ const generateToken = require("../utils/generateToken");
 
 // --- REGISTRATION ---
 exports.registerUser = async (req, res) => {
-  const { name, email, password, confirmpassword } = req.body;
-  try {
-    if (!name || !email || !password || !confirmpassword) {
-      return res.status(400).json({ success: false, message: "Missing required fields!" });
-    }
-    if (password !== confirmpassword) {
-      return res.status(400).json({ success: false, message: "Passwords do not match!" });
-    }
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ success: false, message: "Email already exists!" });
-    }
+  const { firstname, lastname, email, password, confirmpassword, phone, address } = req.body;
 
-    const hashedPassword = await bcrypt.hash(password, 12);
-    let imageUrl = null;
-    if (req.file) {
-      imageUrl = await uploadToCloudinary(req.file.buffer, "image", "Users");
+  if (!firstname || !lastname || !email || !password || !confirmpassword) {
+    return res.status(400).json({ success: false, message: "Missing required fields!" });
+  }
+  if (password !== confirmpassword) {
+    return res.status(400).json({ success: false, message: "Passwords do not match!" });
+  }
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (existingUser) {
+    return res.status(400).json({ success: false, message: "Email already exists!" });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+  let imageUrl = null;
+  if (req.file) {
+    imageUrl = await uploadToCloudinary(req.file.buffer, "image", "Users");
+  }
+
+  exports.registerUser = async (req, res) => {
+    const { firstname, lastname, email, password, confirmpassword, phone, address } = req.body;
+
+    if (!firstname || !lastname || !email || !password || !confirmpassword) {
+      return res.status(400).json({ success: false, message: "Missing required fields!" });
     }
 
     const newUser = await prisma.user.create({
-      data: { name, email, password: hashedPassword, image: imageUrl, role: "CLIENT", isVerified: false }
+      data: {
+        firstname,
+        lastname,
+        email,
+        password: hashedPassword,
+        phone,
+        address,
+        image: imageUrl,
+        role: "CLIENT",
+        isVerified: false
+      }
     });
 
     if (!newUser) {
