@@ -7,85 +7,102 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- 1. USER & AUTHENTICATION ---
 model User {
-  id         String   @id @default(cuid())
-  name       String?
+  id         Int      @id @default(autoincrement())
+  firstname  String
+  lastname   String
   email      String   @unique
-  password   String
-  phone      String?
-  address    String?
-  role       Role     @default(CLIENT)
+  phone      String
   image      String?
-  isVerified Boolean  @default(false)
+  address    String
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  password   String
+  uuid       String   @unique @db.Uuid
+  role       Role     @default(USER)
+  isVerified Boolean  @default(false)
+  Cart       Cart?
+}
 
-  inquiries Inquiry[]
+model Cart {
+  id          Int           @id @default(autoincrement())
+  userid      Int           @unique
+  User        User          @relation(fields: [userid], references: [id], onDelete: Cascade)
+  ProductCart ProductCart[]
+}
+
+model Category {
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  Product Product[]
+}
+
+model Product {
+  id           Int           @id @default(autoincrement())
+  description  String
+  price        Int
+  currency     String
+  sizes        String[]
+  defaultSize  String
+  colors       String[]
+  defaultColor String
+  bestSeller   Boolean
+  image        String
+  subcategory  String
+  rating       Int
+  discount     Int
+  newArrival   Boolean
+  tags         String[]
+  categoryId   Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime
+  name         String
+  Category     Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  ProductCart  ProductCart[]
+  ReceiptItem  ReceiptItem[]
+}
+
+model ProductCart {
+  productid     Int
+  cartid        Int
+  quantity      Int     @default(1)
+  selectedcolor String?
+  selectedsize  String?
+  Cart          Cart    @relation(fields: [cartid], references: [id], onDelete: Cascade)
+  Product       Product @relation(fields: [productid], references: [id], onDelete: Cascade)
+
+  @@unique([productid, cartid])
+}
+
+model Receipt {
+  id            Int           @id @default(autoincrement())
+  orderId       String        @unique
+  name          String
+  email         String        @unique
+  phone         String
+  amount        Int
+  transactionId String
+  status        String
+  createdAt     DateTime      @default(now())
+  userId        Int
+  ReceiptItem   ReceiptItem[]
+}
+
+model ReceiptItem {
+  id        Int     @id @default(autoincrement())
+  receiptId Int
+  name      String
+  price     Int
+  quantity  Int
+  total     Int
+  productId Int
+  image     String
+  Product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  Receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, receiptId])
 }
 
 enum Role {
-  ADMIN // Can manage equipment and view all inquiries
-  STAFF // Can update equipment status
-  CLIENT // Can view catalogue and submit inquiries
-}
-
-// --- 2. EQUIPMENT CATALOGUE ---
-model Equipment {
-  id             String   @id @default(cuid())
-  name           String
-  category       String // e.g., "Excavators", "Cranes"
-  brand          String // e.g., "Caterpillar"
-  region         String // e.g., "Lagos Mainland"
-  description    String?  @db.Text
-  imageUrl       String?
-  dailyRate      Decimal?
-  isAvailable    Boolean  @default(true)
-  specifications Json? // For technical details like horsepower, weight, etc.
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-}
-
-// --- 3. INQUIRIES & LEADS ---
-model Inquiry {
-  id           String @id @default(cuid())
-  fullName     String
-  email        String
-  service      String // "Heavy Machinery Procurement", etc.
-  requirements String @db.Text
-  status       Status @default(PENDING)
-
-  // Link to User (Optional: allows guest inquiries or logged-in inquiries)
-  userId String?
-  user   User?   @relation(fields: [userId], references: [id])
-
-  createdAt DateTime @default(now())
-}
-
-enum Status {
-  PENDING
-  PROCESSING
-  COMPLETED
-  CANCELLED
-}
-
-// --- 4. FEATURED PROJECTS ---
-model Project {
-  id         String   @id @default(cuid())
-  title      String
-  tag        String // e.g., "Oil & Gas"
-  result     String // e.g., "30% Efficiency Boost"
-  imageUrl   String?
-  isFeatured Boolean  @default(false)
-  createdAt  DateTime @default(now())
-}
-
-// --- 5. STAFF MEMBERS ---
-model Staff {
-  id        String   @id @default(cuid())
-  name      String
-  role      String
-  specialty String
-  imageUrl  String?
-  createdAt DateTime @default(now())
+  USER
+  ADMIN
 }

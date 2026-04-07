@@ -31,18 +31,16 @@ exports.registerUser = async (req, res) => {
       imageUrl = await uploadToCloudinary(req.file.buffer, "image", "Users");
     }
 
-    // Combine firstname + lastname into name to match schema
-    const name = `${firstname} ${lastname}`.trim();
-
     const newUser = await prisma.user.create({
       data: {
-        name,
+        firstname,
+        lastname,
         email,
         password: hashedPassword,
-        phone,      // ← now valid
-        address,    // ← now valid
+        phone,
+        address,
         image: imageUrl,
-        role: "CLIENT",
+        role: "USER",
         isVerified: false,
       }
     });
@@ -54,7 +52,7 @@ exports.registerUser = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Registration successful! Check email to verify.",
-      data: { id: newUser.id, name: newUser.name }
+      data: { id: newUser.id, firstname: newUser.firstname, lastname: newUser.lastname }
     });
 
   } catch (error) {
@@ -81,7 +79,13 @@ exports.loginUser = async (req, res) => {
     res.status(200).json({
       success: true,
       token,
-      user: { id: user.id, name: user.name, role: user.role, email: user.email }
+      user: {
+        id: user.id,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        role: user.role,
+        email: user.email
+      }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error during login" });
@@ -108,8 +112,15 @@ exports.verifyEmail = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await prisma.user.findMany({
-      where: { role: "CLIENT" },
-      select: { id: true, name: true, email: true, role: true, isVerified: true }
+      where: { role: "USER" },
+      select: {
+        id: true,
+        firstname: true,
+        lastname: true,
+        email: true,
+        role: true,
+        isVerified: true
+      }
     });
     res.json({ success: true, data: users });
   } catch (error) {
@@ -123,7 +134,7 @@ exports.updateRole = async (req, res) => {
   const { role } = req.body;
   try {
     const updatedUser = await prisma.user.update({
-      where: { id },          // ← String cuid, no Number() wrapping needed
+      where: { id: Number(id) },
       data: { role },
     });
     return res.status(200).json({ success: true, user: updatedUser });
@@ -136,7 +147,7 @@ exports.updateRole = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     await prisma.user.delete({
-      where: { id: req.params.id }  // ← String cuid, no Number() wrapping needed
+      where: { id: Number(req.params.id) }
     });
     res.json({ success: true, message: "User deleted" });
   } catch (error) {
@@ -147,17 +158,23 @@ exports.deleteUser = async (req, res) => {
 // --- UPDATE PROFILE ---
 exports.updateProfile = async (req, res) => {
   const { id } = req.params;
-  const { name, email, newPass } = req.body;
+  const { firstname, lastname, email, newPass } = req.body;
   try {
-    const updateData = { name, email };
+    const updateData = { firstname, lastname, email };
     if (newPass && newPass.trim() !== "") {
       const salt = await bcrypt.genSalt(12);
       updateData.password = await bcrypt.hash(newPass, salt);
     }
     const updatedUser = await prisma.user.update({
-      where: { id },            // ← String cuid, no Number() wrapping needed
+      where: { id: Number(id) },
       data: updateData,
-      select: { id: true, name: true, email: true, role: true }
+      select: {
+        id: true,
+        firstname: true,
+        lastname: true,
+        email: true,
+        role: true
+      }
     });
     res.status(200).json({ success: true, user: updatedUser });
   } catch (error) {
