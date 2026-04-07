@@ -17,9 +17,6 @@ exports.addToCart = async (req, res) => {
             create: { userid: parseduserid },
         });
 
-        // check if product exists
-        const parsedproductid = parseInt(productid);
-
         const existingProduct = await prisma.product.findUnique({
             where: { id: parsedproductid },
         });
@@ -47,11 +44,10 @@ exports.addToCart = async (req, res) => {
             });
         }
 
-        // add product to cart ✅ FIXED (quantity missing)
         const addedCart = await prisma.productCart.create({
             data: {
-                product: { connect: { id: parsedproductid } },
-                cart: { connect: { id: existingCart.id } },
+                Product: { connect: { id: parsedproductid } },  // ✅ capital P
+                Cart: { connect: { id: existingCart.id } },      // ✅ capital C
                 selectedcolor: color || null,
                 selectedsize: size || null,
                 quantity: quantity || 1,
@@ -68,8 +64,8 @@ exports.addToCart = async (req, res) => {
         const userCart = await prisma.cart.findUnique({
             where: { userid: parseduserid },
             include: {
-                Productcart: {
-                    include: { product: true },
+                ProductCart: {                  // ✅ capital P and C
+                    include: { Product: true }, // ✅ capital P
                 },
             },
         });
@@ -110,12 +106,14 @@ exports.updateCart = async (req, res) => {
         const product = await prisma.product.findUnique({
             where: { id: parsedproductid },
         });
+
         if (!product) {
             return res.status(400).json({
                 success: false,
                 message: "Product does not exist!",
             });
         }
+
         const cartItem = await prisma.productCart.findUnique({
             where: {
                 productid_cartid: {
@@ -131,18 +129,13 @@ exports.updateCart = async (req, res) => {
                 message: "Item does not exist in user cart!",
             });
         }
-        const whereComposite = {
-            productid_cartid: {
-                productid: parsedproductid,
-                cartid: userCart.id,
-            },
-        };
 
         const payload = {
             ...(quantity !== undefined && { quantity: Number(quantity) }),
             ...(size !== undefined && { selectedsize: size }),
             ...(color !== undefined && { selectedcolor: color }),
         };
+
         if (Object.keys(payload).length === 0) {
             return res.status(400).json({
                 success: false,
@@ -150,29 +143,31 @@ exports.updateCart = async (req, res) => {
             });
         }
 
-        const updateCartItem = await prisma.productCart.update({
-            where: whereComposite,
-            data: payload && { ...payload },
-            include: { product: true },
+        await prisma.productCart.update({
+            where: {
+                productid_cartid: {
+                    productid: parsedproductid,
+                    cartid: userCart.id,
+                },
+            },
+            data: payload,
+            include: { Product: true }, // ✅ capital P
         });
-
-        console.log("updated:", updateCartItem);
-
 
         const updatedUserCart = await prisma.cart.findUnique({
             where: { userid: parseduserid },
             include: {
-                Productcart: {
-                    include: { product: true },
+                ProductCart: {                  // ✅ capital P and C
+                    include: { Product: true }, // ✅ capital P
                 },
             },
         });
+
         return res.status(200).json({
             success: true,
             message: "Cart item updated successfully",
             data: updatedUserCart,
         });
-
 
     } catch (error) {
         console.log("error", error.message);
@@ -183,7 +178,7 @@ exports.updateCart = async (req, res) => {
     }
 };
 
-// Delete cart ✅ FIXED
+// Delete cart
 exports.deleteCart = async (req, res) => {
     const { userid, productid } = req.body;
     console.log(req.body);
@@ -203,7 +198,6 @@ exports.deleteCart = async (req, res) => {
             });
         }
 
-
         const existingCartItem = await prisma.productCart.findUnique({
             where: {
                 productid_cartid: {
@@ -220,49 +214,34 @@ exports.deleteCart = async (req, res) => {
             });
         }
 
-        const size = undefined
-        const quantity = existingCartItem.quantity - 1
-        const color = undefined
-
         if (existingCartItem.quantity > 1) {
-            const whereComposite = {
-                productid_cartid: {
-                    productid: parsedproductid,
-                    cartid: existingCart.id
-                }
-            }
-
-            const payload = {
-                ...(quantity !== undefined && {
-                    quantity: Number(quantity)
-                }),
-                ...(size !== undefined && { selectedsize: size }),
-                ...(color !== undefined && { selectedcolor: color })
-            }
-
-            if (Object.keys(payload).length === 0) {
-                return res.status(400).json({ success: false, message: "Nothing to update!" })
-            }
-
-            const updateCart = await prisma.productCart.update({
-                where: whereComposite,
-                data: payload && { ...payload },
-                include: {
-                    product: true
-                }
-            })
+            await prisma.productCart.update({
+                where: {
+                    productid_cartid: {
+                        productid: parsedproductid,
+                        cartid: existingCart.id,
+                    },
+                },
+                data: { quantity: existingCartItem.quantity - 1 },
+            });
 
             const updatedUserCart = await prisma.cart.findUnique({
                 where: { userid: parseduserid },
-                include: { productCart: { include: { product: true } } }
-            })
+                include: {
+                    ProductCart: {                  // ✅ capital P and C
+                        include: { Product: true }, // ✅ capital P
+                    },
+                },
+            });
+
             return res.status(200).json({
                 success: true,
-                message: "product deleted from cart successfully",
-                data: updatedUserCart
-            })
+                message: "Product quantity reduced in cart",
+                data: updatedUserCart,
+            });
         }
-        const deletedCartItem = await prisma.productCart.delete({
+
+        await prisma.productCart.delete({
             where: {
                 productid_cartid: {
                     productid: parsedproductid,
@@ -271,11 +250,11 @@ exports.deleteCart = async (req, res) => {
             },
         });
 
-        const daleteduserCart = await prisma.cart.findUnique({
+        const deletedUserCart = await prisma.cart.findUnique({
             where: { userid: parseduserid },
             include: {
-                Productcart: {
-                    include: { product: true },
+                ProductCart: {                  // ✅ capital P and C
+                    include: { Product: true }, // ✅ capital P
                 },
             },
         });
@@ -283,8 +262,9 @@ exports.deleteCart = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Cart item deleted successfully",
-            data: daleteduserCart,
+            data: deletedUserCart,
         });
+
     } catch (error) {
         console.log("error", error.message);
         res.status(500).json({
@@ -303,8 +283,8 @@ exports.getCart = async (req, res) => {
         const userCart = await prisma.cart.findUnique({
             where: { userid: parseduserid },
             include: {
-                Productcart: {
-                    include: { product: true },
+                ProductCart: {                  // ✅ capital P and C
+                    include: { Product: true }, // ✅ capital P
                 },
             },
         });
