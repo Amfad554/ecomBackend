@@ -88,9 +88,12 @@ exports.initializePayment = async (req, res) => {
 exports.verifyPayment = async (req, res) => {
     const { transaction_id } = req.query;
 
-    if (!transaction_id) return res.status(400).json({ success: false, message: "Transaction ID is missing!" });
+    if (!transaction_id) {
+        return res.status(400).json({ success: false, message: "Transaction ID is missing!" });
+    }
 
     try {
+        // 1. Verify with Flutterwave
         const response = await fetch(`https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`, {
             method: "GET",
             headers: {
@@ -105,10 +108,17 @@ exports.verifyPayment = async (req, res) => {
             return res.status(400).json({ success: false, message: "Payment verification failed" });
         }
 
+        // 2. Extract Metadata (Note: userId and order_id must match what you sent in initializePayment)
         const id = Number(data.data.meta.userId);
         const order_id = data.data.meta.order_id;
 
-        // 1. Get the cart using corrected relation names
+        // 3. Find the User
+        const user = await prisma.user.findUnique({ where: { id: id } });
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        // 4. Get the Cart (Fixed variable name to 'id')
         const userCart = await prisma.cart.findUnique({
             where: { userid: id },
             include: {
@@ -116,50 +126,65 @@ exports.verifyPayment = async (req, res) => {
             },
         });
 
-        // 2. Check for existing receipt using corrected relation name 'ReceiptItem'
+        if (!userCart) {
+            return res.status(404).json({ success: false, message: "Cart not found" });
+        }
+
+        // 5. Check if Receipt already exists to prevent duplicates
         const existingReceipt = await prisma.receipt.findUnique({
             where: { orderId: order_id },
             include: { ReceiptItem: true }
         });
 
         if (existingReceipt) {
-            return res.status(200).json({ success: true, message: "Payment already verified", data: existingReceipt });
+            return res.status(200).json({
+                success: true,
+                message: "Payment already verified",
+                data: existingReceipt
+            });
         }
 
-        const user = await prisma.user.findUnique({ where: { id } });
-
-        // 3. Create Receipt
+        // 6. Create the Receipt
         const newReceipt = await prisma.receipt.create({
             data: {
                 orderId: order_id,
                 userId: id,
                 name: `${user.firstname} ${user.lastname}`,
                 email: user.email,
-                phone: user.phone,
+                phone: user.phone || "N/A",
                 amount: data.data.amount,
-                transactionId: transaction_id,
-                status: data.data.status
-            }
+                transactionId: String(transaction_id),
+                status: data.data.status,
+                // Create ReceiptItems at the same time (Nested Write)
+                ReceiptItem: {
+                    create: userCart.ProductCart.map(item => ({
+                        name: item.Product.name,
+                        price: item.Product.price,
+                        image: item.Product.image,
+                        quantity: item.quantity,
+                        total: item.quantity * item.Product.price,
+                        productId: item.productid
+                    }))
+                }
+            },
+            include: { ReceiptItem: true }
         });
 
-        // 4. Create ReceiptItems using ProductCart and Product
-        await prisma.receiptItem.createMany({
-            data: userCart.ProductCart.map(item => ({
-                receiptId: newReceipt.id,
-                name: item.Product.name,
-                price: item.Product.price,
-                image: item.Product.image,
-                quantity: item.quantity,
-                total: item.quantity * item.Product.price,
-                productId: item.productid // productid (lowercase i) from your schema
-            }))
+        // 7. Optional: Clear the cart after successful purchase
+        await prisma.productCart.deleteMany({
+            where: { cartid: userCart.id }
         });
 
-        return res.status(200).json({ success: true, message: "Payment successful", data: newReceipt });
+        return res.status(200).json({
+            success: true,
+            message: "Payment successful and receipt generated",
+            data: newReceipt
+        });
 
     } catch (error) {
-        console.error("Error verifying payment:", error.message);
-        return res.status(500).json({ success: false, message: "Internal server error" });
+        console.error("Verification Error:", error);
+        // This ensures that even if it fails, it returns JSON, not HTML
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
