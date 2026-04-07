@@ -10,28 +10,25 @@ const generateToken = require("../utils/generateToken");
 exports.registerUser = async (req, res) => {
   const { firstname, lastname, email, password, confirmpassword, phone, address } = req.body;
 
-  if (!firstname || !lastname || !email || !password || !confirmpassword) {
-    return res.status(400).json({ success: false, message: "Missing required fields!" });
-  }
-  if (password !== confirmpassword) {
-    return res.status(400).json({ success: false, message: "Passwords do not match!" });
-  }
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-  if (existingUser) {
-    return res.status(400).json({ success: false, message: "Email already exists!" });
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 12);
-  let imageUrl = null;
-  if (req.file) {
-    imageUrl = await uploadToCloudinary(req.file.buffer, "image", "Users");
-  }
-
-  exports.registerUser = async (req, res) => {
-    const { firstname, lastname, email, password, confirmpassword, phone, address } = req.body;
-
+  try {
     if (!firstname || !lastname || !email || !password || !confirmpassword) {
       return res.status(400).json({ success: false, message: "Missing required fields!" });
+    }
+
+    if (password !== confirmpassword) {
+      return res.status(400).json({ success: false, message: "Passwords do not match!" });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: "Email already exists!" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = await uploadToCloudinary(req.file.buffer, "image", "Users");
     }
 
     const newUser = await prisma.user.create({
@@ -44,7 +41,7 @@ exports.registerUser = async (req, res) => {
         address,
         image: imageUrl,
         role: "CLIENT",
-        isVerified: false
+        isVerified: false,
       }
     });
 
@@ -59,8 +56,9 @@ exports.registerUser = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Registration successful! Check email to verify.",
-      data: { id: newUser.id, name: newUser.name }
+      data: { id: newUser.id, firstname: newUser.firstname, lastname: newUser.lastname }
     });
+
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
