@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const uploadToCloudinary = require('../utils/uploadToCloudinary');
 const { sendVerification } = require("../utils/emailVerification");
 const generateToken = require("../utils/generateToken");
+const { v4: uuidv4 } = require('uuid');
 
 // --- REGISTRATION ---
 exports.registerUser = async (req, res) => {
@@ -40,6 +41,7 @@ exports.registerUser = async (req, res) => {
         phone,
         address,
         image: imageUrl,
+        uuid: uuidv4(),  // ✅ generate uuid here
         role: "USER",
         isVerified: false,
       }
