@@ -13,26 +13,22 @@ exports.initializePayment = async (req, res) => {
         const user = await prisma.user.findUnique({ where: { email } });
 
         if (!user) {
-            return res.status(400).json({
-                success: false,
-                message: "User does not exist!",
-            });
+            return res.status(400).json({ success: false, message: "User does not exist!" });
         }
 
+        // Safely handle the ID (Remove parseInt if your DB uses Strings/UUIDs)
+        const userId = typeof user.id === 'string' ? parseInt(user.id) : user.id;
+
         const userCart = await prisma.cart.findUnique({
-            where: { userid: parseInt(user.id) },
+            where: { userid: userId },
             include: { Productcart: { include: { product: true } } },
         });
 
-        if (!userCart) {
-            return res.status(400).json({
-                success: false,
-                message: "User cart does not exist!",
-            });
+        if (!userCart || userCart.Productcart.length === 0) {
+            return res.status(400).json({ success: false, message: "Cart is empty or does not exist!" });
         }
 
         const cartItems = userCart.Productcart;
-
         const totalPrice = cartItems.reduce(
             (acc, item) => acc + (item.product?.price || 0) * (item.quantity || 1),
             0
@@ -43,22 +39,13 @@ exports.initializePayment = async (req, res) => {
             amount: totalPrice,
             currency: 'NGN',
             redirect_url: 'https://granduer.vercel.app/thankyou',
-
             customer: {
                 email: user.email,
                 name: `${user.firstname} ${user.lastname}`,
-                phonenumber: user.phone
+                phonenumber: user.phone || "0000000000" // Flutterwave sometimes requires this
             },
-
-            meta: {
-                userId: user.id,
-                order_id,
-            },
-
-            customizations: {
-                title: 'Granduer',
-                description: 'Payment for items in cart!'
-            }
+            meta: { userId: user.id, order_id },
+            customizations: { title: 'Granduer', description: 'Payment for items in cart!' }
         };
 
         const response = await fetch("https://api.flutterwave.com/v3/payments", {
@@ -72,26 +59,23 @@ exports.initializePayment = async (req, res) => {
 
         const data = await response.json();
 
-        if (!response.ok || data.status !== "success") {
-            return res.status(500).json({
+        if (!response.ok) {
+            console.error("Flutterwave Error Details:", data); // THIS WILL SHOW IN RENDER LOGS
+            return res.status(response.status).json({
                 success: false,
-                message: data.message || "Something went wrong, please try again later!"
+                message: data.message || "Flutterwave initialization failed"
             });
         }
 
-        return res.status(201).json({
+        return res.status(200).json({
             success: true,
-            message: "Payment initialized successfully",
             link: data.data.link,
             order_id
         });
 
     } catch (error) {
-        console.log("error", error.message);
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error, please try again later!"
-        });
+        console.error("Internal Server Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -180,7 +164,7 @@ exports.verifyPayment = async (req, res) => {
                 success: true,
                 message: "Payment already verified",
                 data: updatedReciept,
-        
+
 
             });
         }
