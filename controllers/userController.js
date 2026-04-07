@@ -31,23 +31,21 @@ exports.registerUser = async (req, res) => {
       imageUrl = await uploadToCloudinary(req.file.buffer, "image", "Users");
     }
 
+    // Combine firstname + lastname into name to match schema
+    const name = `${firstname} ${lastname}`.trim();
+
     const newUser = await prisma.user.create({
       data: {
-        firstname,
-        lastname,
+        name,
         email,
         password: hashedPassword,
-        phone,
-        address,
+        phone,      // ← now valid
+        address,    // ← now valid
         image: imageUrl,
         role: "CLIENT",
         isVerified: false,
       }
     });
-
-    if (!newUser) {
-      return res.status(400).json({ success: false, message: "User creation failed!" });
-    }
 
     const token = jwt.sign({ email }, process.env.JWT_SECRET_KEY, { expiresIn: '15m' });
     const verificationLink = `https://granduer.vercel.app/verifyemail/${token}`;
@@ -56,7 +54,7 @@ exports.registerUser = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Registration successful! Check email to verify.",
-      data: { id: newUser.id, firstname: newUser.firstname, lastname: newUser.lastname }
+      data: { id: newUser.id, name: newUser.name }
     });
 
   } catch (error) {
@@ -106,6 +104,7 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
+// --- GET ALL USERS ---
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await prisma.user.findMany({
@@ -124,8 +123,8 @@ exports.updateRole = async (req, res) => {
   const { role } = req.body;
   try {
     const updatedUser = await prisma.user.update({
-      where: { id: Number(id) }, // <--- CHANGE THIS
-      data: { role: role },
+      where: { id },          // ← String cuid, no Number() wrapping needed
+      data: { role },
     });
     return res.status(200).json({ success: true, user: updatedUser });
   } catch (error) {
@@ -137,13 +136,14 @@ exports.updateRole = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     await prisma.user.delete({
-      where: { id: Number(req.params.id) } // <--- CHANGE THIS
+      where: { id: req.params.id }  // ← String cuid, no Number() wrapping needed
     });
     res.json({ success: true, message: "User deleted" });
   } catch (error) {
     res.status(500).json({ success: false, message: "Delete failed" });
   }
 };
+
 // --- UPDATE PROFILE ---
 exports.updateProfile = async (req, res) => {
   const { id } = req.params;
@@ -155,13 +155,13 @@ exports.updateProfile = async (req, res) => {
       updateData.password = await bcrypt.hash(newPass, salt);
     }
     const updatedUser = await prisma.user.update({
-      where: { id: Number(id) }, // <--- CHANGE THIS to Number(id)
+      where: { id },            // ← String cuid, no Number() wrapping needed
       data: updateData,
       select: { id: true, name: true, email: true, role: true }
     });
     res.status(200).json({ success: true, user: updatedUser });
   } catch (error) {
-    console.error("Update Profile Error:", error); // Helpful for Render logs
+    console.error("Update Profile Error:", error);
     res.status(500).json({ success: false, message: "Update failed" });
   }
 };
