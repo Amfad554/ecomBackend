@@ -3,7 +3,6 @@ const prisma = new PrismaClient();
 const bcrypt = require('bcrypt');
 const jwt = require("jsonwebtoken");
 const uploadToCloudinary = require('../utils/uploadToCloudinary');
-const { sendVerification } = require("../utils/emailVerification");
 const generateToken = require("../utils/generateToken");
 const { v4: uuidv4 } = require('uuid');
 
@@ -41,19 +40,15 @@ exports.registerUser = async (req, res) => {
         phone,
         address,
         image: imageUrl,
-        uuid: uuidv4(),  // ✅ generate uuid here
+        uuid: uuidv4(),
         role: "USER",
-        isVerified: false,
+        isVerified: true, // ✅ auto-verify since no email service
       }
     });
 
-    const token = jwt.sign({ email }, process.env.JWT_SECRET_KEY, { expiresIn: '15m' });
-    const verificationLink = `https://granduer.vercel.app/verifyemail/${token}`;
-    await sendVerification(newUser.email, verificationLink);
-
     return res.status(201).json({
       success: true,
-      message: "Registration successful! Check email to verify.",
+      message: "Registration successful!",
       data: { id: newUser.id, firstname: newUser.firstname, lastname: newUser.lastname }
     });
 
