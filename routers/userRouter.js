@@ -2,22 +2,26 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const multer = require('multer'); // 1. Import multer
+const multer = require('multer');
 
-// 2. Initialize multer (using memory storage so we get req.file.buffer)
+// 1. IMPORT YOUR AUTH MIDDLEWARE
+// (Assuming your middleware file is named authMiddleware.js)
+const { isUser, isAdmin } = require('../middleware/authMiddleware');
+
+// 2. EXTRACT getMe FROM YOUR CONTROLLER
+const { registerUser, loginUser, verifyEmail, getAllUsers, deleteUser, updateRole, updateProfile, getMe } = userController;
+
 const upload = multer({ storage: multer.memoryStorage() });
 
-// 3. Add upload.single('image') to the register route
-// The string 'image' MUST match the key used in your frontend: formData.append("image", ...)
-router.post('/register', upload.single('image'), userController.registerUser);
+router.post('/register', upload.single('image'), registerUser);
+router.post('/login', loginUser);
+router.post('/verifyemail', verifyEmail);
+router.get('/all', isUser, isAdmin, getAllUsers); // Example of using auth
+router.delete('/delete/:id', isUser, isAdmin, deleteUser);
+router.put('/update-role/:id', isUser, isAdmin, updateRole);
+router.put('/update-profile/:id', isUser, updateProfile); 
 
-router.post('/login', userController.loginUser);
-router.post('/verifyemail', userController.verifyEmail);
-router.get('/all', userController.getAllUsers);
-router.delete('/delete/:id', userController.deleteUser);
-router.put('/update-role/:id', userController.updateRole);
-router.put('/update-profile/:id', userController.updateProfile); 
-// userRoutes.js
-router.get("/me", protect, getMe); // protect = your JWT auth middleware
+// 3. FIXED LINE: Change 'protect' to 'isUser'
+router.get("/me", isUser, getMe); 
 
 module.exports = router;
