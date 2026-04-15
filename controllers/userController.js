@@ -179,3 +179,21 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ success: false, message: "Update failed" });
   }
 };
+
+// userController.js
+exports.getMe = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id }, // req.user set by your auth middleware
+      select: { id: true, firstname: true, lastname: true, email: true, role: true, isVerified: true }
+    });
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: "User no longer exists" });
+    }
+
+    res.json({ success: true, user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

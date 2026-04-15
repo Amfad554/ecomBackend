@@ -23,12 +23,6 @@ model User {
   Cart       Cart?
 }
 
-model Cart {
-  id          Int           @id @default(autoincrement())
-  userid      Int           @unique
-  User        User          @relation(fields: [userid], references: [id], onDelete: Cascade)
-  ProductCart ProductCart[]
-}
 
 model Category {
   id      Int       @id @default(autoincrement())
@@ -61,7 +55,18 @@ model Product {
   ReceiptItem  ReceiptItem[]
 }
 
+model Cart {
+  id          Int           @id @default(autoincrement())
+  // 1. Remove @unique and make it optional with "?" 
+  // to allow Guest Carts or multiple session carts
+  userid      Int?          @unique 
+  User        User?         @relation(fields: [userid], references: [id], onDelete: Cascade)
+  ProductCart ProductCart[]
+}
+
 model ProductCart {
+  // 2. Add a proper primary key ID
+  id            Int     @id @default(autoincrement()) 
   productid     Int
   cartid        Int
   quantity      Int     @default(1)
@@ -70,7 +75,8 @@ model ProductCart {
   Cart          Cart    @relation(fields: [cartid], references: [id], onDelete: Cascade)
   Product       Product @relation(fields: [productid], references: [id], onDelete: Cascade)
 
-  @@unique([productid, cartid])
+  // 3. REMOVE @@unique([productid, cartid]) 
+  // This allows multiple variations of the same product
 }
 
 model Receipt {

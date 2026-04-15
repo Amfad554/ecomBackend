@@ -3,87 +3,53 @@ const prisma = new PrismaClient();
 
 // Add to cart
 exports.addToCart = async (req, res) => {
-    console.log("body>", req.body);
-
-    const { userid, productid, color, size, quantity } = req.body;
-    const parseduserid = parseInt(userid);
-    const parsedproductid = parseInt(productid);
+    const { userid, guestId, productid, color, size, quantity } = req.body;
+    const parsedProductid = parseInt(productid);
 
     try {
-        // find or create user cart
+        // 1. Identify the cart (by user OR guest)
+        const cartWhere = userid
+            ? { userid: parseInt(userid) }
+            : { guestId: guestId };
+
         const existingCart = await prisma.cart.upsert({
-            where: { userid: parseduserid },
+            where: cartWhere,
             update: {},
-            create: { userid: parseduserid },
+            create: cartWhere,
         });
 
-        const existingProduct = await prisma.product.findUnique({
-            where: { id: parsedproductid },
-        });
-
-        if (!existingProduct) {
-            return res.status(400).json({
-                success: false,
-                message: "Product does not exist in database!",
-            });
-        }
-
-        const existingCartItem = await prisma.productCart.findUnique({
+        // 2. Check if THIS SPECIFIC variation exists
+        const existingItem = await prisma.productCart.findFirst({
             where: {
-                productid_cartid: {
-                    productid: parsedproductid,
-                    cartid: existingCart.id,
-                },
-            },
-        });
-
-        if (existingCartItem) {
-            return res.status(400).json({
-                success: false,
-                message: "Item already exists in cart!",
-            });
-        }
-
-        // ✅ Use direct field assignment instead of connect
-        const addedCart = await prisma.productCart.create({
-            data: {
-                productid: parsedproductid,
                 cartid: existingCart.id,
+                productid: parsedProductid,
                 selectedcolor: color || null,
                 selectedsize: size || null,
-                quantity: quantity || 1,
             },
         });
 
-        if (!addedCart) {
-            return res.status(400).json({
-                success: false,
-                message: "Unable to add item to cart",
+        if (existingItem) {
+            // If it exists, just increase quantity
+            await prisma.productCart.update({
+                where: { id: existingItem.id },
+                data: { quantity: existingItem.quantity + (quantity || 1) },
+            });
+        } else {
+            // Create new record for this variation
+            await prisma.productCart.create({
+                data: {
+                    cartid: existingCart.id,
+                    productid: parsedProductid,
+                    selectedcolor: color || null,
+                    selectedsize: size || null,
+                    quantity: quantity || 1,
+                },
             });
         }
 
-        // ✅ ProductCart and Product match schema exactly
-        const userCart = await prisma.cart.findUnique({
-            where: { userid: parseduserid },
-            include: {
-                ProductCart: {
-                    include: { Product: true },
-                },
-            },
-        });
-
-        return res.status(201).json({
-            success: true,
-            message: "Item added to cart successfully",
-            data: userCart,
-        });
-
-    } catch (error) {
-        console.log("error", error.message);
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+        res.status(200).json({ success: true, message: "Cart updated" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
@@ -117,12 +83,14 @@ exports.updateCart = async (req, res) => {
             });
         }
 
-        const cartItem = await prisma.productCart.findUnique({
+        // Change this logic in your backend controller
+        const cartItem = await prisma.productCart.findFirst({ // Use findFirst, not findUnique
             where: {
-                productid_cartid: {
-                    productid: parsedproductid,
-                    cartid: userCart.id,
-                },
+                cartid: userCart.id,
+                productid: parsedproductid,
+                // If you are using variations, you MUST include these to find the right row
+                selectedcolor: color || null,
+                selectedsize: size || null,
             },
         });
 

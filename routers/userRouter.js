@@ -17,5 +17,7 @@ router.get('/all', userController.getAllUsers);
 router.delete('/delete/:id', userController.deleteUser);
 router.put('/update-role/:id', userController.updateRole);
 router.put('/update-profile/:id', userController.updateProfile); 
+// userRoutes.js
+router.get("/me", protect, getMe); // protect = your JWT auth middleware
 
 module.exports = router;
