@@ -6,7 +6,8 @@ const multer = require('multer');
 
 // 1. IMPORT YOUR AUTH MIDDLEWARE
 // (Assuming your middleware file is named authMiddleware.js)
-const { isUser, isAdmin } = require('../middleware/auth'); // Matches auth.js
+// In userRouter.js
+const { isUser, isAdmin } = require('../middlewares/auth');
 
 // 2. EXTRACT getMe FROM YOUR CONTROLLER
 const { registerUser, loginUser, verifyEmail, getAllUsers, deleteUser, updateRole, updateProfile, getMe } = userController;
