@@ -1,7 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// Add to cart
+// ─── Add to cart ───────────────────────────────────────────────────────────
 exports.addToCart = async (req, res) => {
     const { userid, guestId, productid, color, size, quantity } = req.body;
     const parsedProductid = parseInt(productid);
@@ -17,13 +17,14 @@ exports.addToCart = async (req, res) => {
             create: cartWhere,
         });
 
+        // ✅ Fixed: use correct variable names from req.body
         const existingItem = await prisma.productCart.findFirst({
             where: {
-                cartid: existingCart.id,
-                productid: parsedProductid,
-                selectedcolor: color || null,
-                selectedsize: size || null,
-            },
+                productid: parsedProductid,   // was: productid (unparsed), cartid (undefined)
+                cartid: existingCart.id,       // was: cartid (undefined)
+                selectedcolor: color || null,  // was: selectedcolor (undefined)
+                selectedsize: size || null,    // was: selectedsize (undefined)
+            }
         });
 
         if (existingItem) {
@@ -53,7 +54,6 @@ exports.addToCart = async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 };
-
 // ─── Update cart ───────────────────────────────────────────────────────────
 exports.updateCart = async (req, res) => {
     console.log("BODY RECEIVED:", req.body);
@@ -156,12 +156,11 @@ exports.deleteCart = async (req, res) => {
             return res.status(400).json({ success: false, message: "User cart does not exist!" });
         }
 
-        const existingCartItem = await prisma.productCart.findUnique({
+        // FIX: Use findFirst instead of findUnique with compound key
+        const existingCartItem = await prisma.productCart.findFirst({
             where: {
-                productid_cartid: {
-                    productid: parsedproductid,
-                    cartid: existingCart.id,
-                },
+                productid: parsedproductid,
+                cartid: existingCart.id,
             },
         });
 
@@ -170,23 +169,15 @@ exports.deleteCart = async (req, res) => {
         }
 
         if (existingCartItem.quantity > 1) {
+            // FIX: Update by primary key `id` instead of compound key
             await prisma.productCart.update({
-                where: {
-                    productid_cartid: {
-                        productid: parsedproductid,
-                        cartid: existingCart.id,
-                    },
-                },
+                where: { id: existingCartItem.id },
                 data: { quantity: existingCartItem.quantity - 1 },
             });
         } else {
+            // FIX: Delete by primary key `id` instead of compound key
             await prisma.productCart.delete({
-                where: {
-                    productid_cartid: {
-                        productid: parsedproductid,
-                        cartid: existingCart.id,
-                    },
-                },
+                where: { id: existingCartItem.id },
             });
         }
 
