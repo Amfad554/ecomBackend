@@ -60,13 +60,18 @@ exports.updateCart = async (req, res) => {
 
     const { userid, cartItemId, quantity, size, color } = req.body;
 
-    // cartItemId is required — this is the ProductCart row's primary key
+    // cartItemId is the ProductCart row's primary key — required
     if (!cartItemId) {
         return res.status(400).json({ success: false, message: "cartItemId is required!" });
     }
 
+    // FIX: userid is required for the cart refetch after update
+    if (!userid) {
+        return res.status(400).json({ success: false, message: "userid is required!" });
+    }
+
     try {
-        // 1. Find the exact cart row by its own primary key
+        // 1. Find the exact ProductCart row by its primary key
         const cartItem = await prisma.productCart.findUnique({
             where: { id: Number(cartItemId) },
         });
@@ -74,7 +79,7 @@ exports.updateCart = async (req, res) => {
         console.log("CART ITEM FOUND:", cartItem);
 
         if (!cartItem) {
-            return res.status(400).json({ success: false, message: "Cart item not found!" });
+            return res.status(404).json({ success: false, message: "Cart item not found!" });
         }
 
         // 2. Build update payload — only include fields that were sent
@@ -88,7 +93,7 @@ exports.updateCart = async (req, res) => {
             return res.status(400).json({ success: false, message: "No fields to update!" });
         }
 
-        // 3. Update by primary key — no ambiguity with variations
+        // 3. Update by primary key
         const updated = await prisma.productCart.update({
             where: { id: cartItem.id },
             data: payload,
@@ -96,7 +101,23 @@ exports.updateCart = async (req, res) => {
 
         console.log("UPDATED ROW:", updated);
 
-        // 4. Return the full refreshed cart
+        // 4. FIX: Verify the user's cart actually exists before trying to return it
+        const userCart = await prisma.cart.findUnique({
+            where: { userid: Number(userid) },
+        });
+
+        if (!userCart) {
+            // The update succeeded but we can't find the cart to return —
+            // return the updated row directly so the frontend can patch locally
+            return res.status(200).json({
+                success: true,
+                message: "Cart item updated successfully",
+                data: { ProductCart: [] },
+                updatedItem: updated,
+            });
+        }
+
+        // 5. Return the full refreshed cart with product details
         const updatedUserCart = await prisma.cart.findUnique({
             where: { userid: Number(userid) },
             include: {
