@@ -73,7 +73,7 @@ exports.updateCart = async (req, res) => {
         }
 
         const product = await prisma.product.findUnique({
-            where: { id: parsedproductid },
+            where: { id: Number(cartItemId) },
         });
 
         if (!product) {
@@ -115,15 +115,9 @@ exports.updateCart = async (req, res) => {
         }
 
         await prisma.productCart.update({
-            where: {
-                productid_cartid: {
-                    productid: parsedproductid,
-                    cartid: userCart.id,
-                },
-            },
+            where: { id: cartItem.id },  // ✅ update by primary key
             data: payload,
         });
-
         // ✅ ProductCart and Product match schema exactly
         const updatedUserCart = await prisma.cart.findUnique({
             where: { userid: parseduserid },
