@@ -1,29 +1,28 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// ─── Add to cart ───────────────────────────────────────────────────────────
+// ─── Add to Cart ──────────────────────────────────────────────────────────
 exports.addToCart = async (req, res) => {
     const { userid, guestId, productid, color, size, quantity } = req.body;
     const parsedProductid = parseInt(productid);
 
     try {
-        const cartWhere = userid
-            ? { userid: parseInt(userid) }
-            : { guestId: guestId };
+        const cartWhere = userid ? { userid: parseInt(userid) } : { guestId: guestId };
 
+        // Ensure the cart exists
         const existingCart = await prisma.cart.upsert({
             where: cartWhere,
             update: {},
             create: cartWhere,
         });
 
-        // ✅ Fixed: use correct variable names from req.body
+        // Check if this specific variant (product + color + size) is already in this cart
         const existingItem = await prisma.productCart.findFirst({
             where: {
-                productid: parsedProductid,   // was: productid (unparsed), cartid (undefined)
-                cartid: existingCart.id,       // was: cartid (undefined)
-                selectedcolor: color || null,  // was: selectedcolor (undefined)
-                selectedsize: size || null,    // was: selectedsize (undefined)
+                productid: parsedProductid,
+                cartid: existingCart.id,
+                selectedcolor: color || null,
+                selectedsize: size || null,
             }
         });
 
@@ -49,11 +48,13 @@ exports.addToCart = async (req, res) => {
             include: { ProductCart: { include: { Product: true } } },
         });
 
-        res.status(200).json({ success: true, message: "Cart updated", data: updatedCart });
+        res.status(200).json({ success: true, message: "Item added to cart", data: updatedCart });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 };
+
+// ─── Update Cart (With Collision/Merge Logic) ─────────────────────────────
 exports.updateCart = async (req, res) => {
     const { userid, cartItemId, quantity, size, color } = req.body;
 
@@ -62,7 +63,7 @@ exports.updateCart = async (req, res) => {
     }
 
     try {
-        // 1. Get the current item to know its productid
+        // 1. Find the current row to get its context
         const currentItem = await prisma.productCart.findUnique({
             where: { id: Number(cartItemId) },
         });
@@ -71,40 +72,42 @@ exports.updateCart = async (req, res) => {
             return res.status(404).json({ success: false, message: "Cart item not found!" });
         }
 
-        // 2. CHECK FOR COLLISION: If size/color changed, does the new variant already exist?
+        // 2. Identify the "target" state (what we want this item to become)
         const targetSize = size !== undefined ? size : currentItem.selectedsize;
         const targetColor = color !== undefined ? color : currentItem.selectedcolor;
+        const targetQuantity = quantity !== undefined ? Number(quantity) : currentItem.quantity;
 
-        const existingVariant = await prisma.productCart.findFirst({
+        // 3. Collision Check: Does another row already have this variant?
+        const duplicateVariant = await prisma.productCart.findFirst({
             where: {
                 cartid: currentItem.cartid,
                 productid: currentItem.productid,
                 selectedsize: targetSize,
                 selectedcolor: targetColor,
-                id: { not: currentItem.id } // Don't match the same row
+                id: { not: currentItem.id } // exclude current row
             }
         });
 
-        if (existingVariant) {
-            // MERGE: Update the other row and delete this one
+        if (duplicateVariant) {
+            // MERGE: Update the existing row with combined quantity and delete the current row
             await prisma.productCart.update({
-                where: { id: existingVariant.id },
-                data: { quantity: existingVariant.quantity + (Number(quantity) || currentItem.quantity) }
+                where: { id: duplicateVariant.id },
+                data: { quantity: duplicateVariant.quantity + targetQuantity }
             });
             await prisma.productCart.delete({ where: { id: currentItem.id } });
         } else {
-            // NORMAL UPDATE: Update the current row
+            // NORMAL UPDATE: No conflict, just update the row
             await prisma.productCart.update({
                 where: { id: currentItem.id },
                 data: {
-                    ...(quantity !== undefined && { quantity: Number(quantity) }),
-                    ...(size !== undefined && { selectedsize: size }),
-                    ...(color !== undefined && { selectedcolor: color }),
+                    quantity: targetQuantity,
+                    selectedsize: targetSize,
+                    selectedcolor: targetColor,
                 },
             });
         }
 
-        // 3. Return the full refreshed cart (Standardized Response)
+        // 4. Return refreshed cart
         const updatedUserCart = await prisma.cart.findUnique({
             where: { userid: Number(userid) },
             include: { ProductCart: { include: { Product: true } } },
@@ -121,12 +124,12 @@ exports.updateCart = async (req, res) => {
     }
 };
 
-// ─── Delete from cart ──────────────────────────────────────────────────────
+// ─── Delete From Cart ──────────────────────────────────────────────────────
 exports.deleteCart = async (req, res) => {
-    const { userid, cartItemId } = req.body; // Suggest passing cartItemId (primary key) instead of productid
+    // We expect cartItemId (the specific row ID) for a clean delete
+    const { userid, cartItemId } = req.body;
 
     try {
-        // Delete the specific row directly using its ID
         await prisma.productCart.delete({
             where: { id: Number(cartItemId) }
         });
@@ -146,21 +149,18 @@ exports.deleteCart = async (req, res) => {
     }
 };
 
-// ─── Get cart ──────────────────────────────────────────────────────────────
+// ─── Get Cart ──────────────────────────────────────────────────────────────
 exports.getCart = async (req, res) => {
     const { userid } = req.params;
-    const parseduserid = parseInt(userid);
 
     try {
         const userCart = await prisma.cart.findUnique({
-            where: { userid: parseduserid },
-            include: {
-                ProductCart: { include: { Product: true } },
-            },
+            where: { userid: parseInt(userid) },
+            include: { ProductCart: { include: { Product: true } } },
         });
 
         if (!userCart) {
-            return res.status(400).json({ success: false, message: "User cart does not exist!" });
+            return res.status(200).json({ success: true, data: { ProductCart: [] } });
         }
 
         res.status(200).json({
@@ -170,7 +170,6 @@ exports.getCart = async (req, res) => {
         });
 
     } catch (error) {
-        console.log("GET CART ERROR:", error.message);
         res.status(500).json({ success: false, message: error.message });
     }
 };
