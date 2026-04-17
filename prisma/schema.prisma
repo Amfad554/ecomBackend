@@ -83,7 +83,7 @@ model Receipt {
   id            Int           @id @default(autoincrement())
   orderId       String        @unique
   name          String
-  email         String        @unique
+  email         String      
   phone         String
   amount        Int
   transactionId String
