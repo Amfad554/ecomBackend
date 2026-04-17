@@ -54,138 +54,60 @@ exports.addToCart = async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 };
-// ─── Update cart ───────────────────────────────────────────────────────────
 exports.updateCart = async (req, res) => {
-    console.log("BODY RECEIVED:", req.body);
-
     const { userid, cartItemId, quantity, size, color } = req.body;
 
-    // cartItemId is the ProductCart row's primary key — required
-    if (!cartItemId) {
-        return res.status(400).json({ success: false, message: "cartItemId is required!" });
-    }
-
-    // FIX: userid is required for the cart refetch after update
-    if (!userid) {
-        return res.status(400).json({ success: false, message: "userid is required!" });
+    if (!cartItemId || !userid) {
+        return res.status(400).json({ success: false, message: "userid and cartItemId are required!" });
     }
 
     try {
-        // 1. Find the exact ProductCart row by its primary key
-        const cartItem = await prisma.productCart.findUnique({
+        // 1. Get the current item to know its productid
+        const currentItem = await prisma.productCart.findUnique({
             where: { id: Number(cartItemId) },
         });
 
-        console.log("CART ITEM FOUND:", cartItem);
-
-        if (!cartItem) {
+        if (!currentItem) {
             return res.status(404).json({ success: false, message: "Cart item not found!" });
         }
 
-        // 2. Build update payload — only include fields that were sent
-        const payload = {
-            ...(quantity !== undefined && { quantity: Number(quantity) }),
-            ...(size !== undefined && { selectedsize: size }),
-            ...(color !== undefined && { selectedcolor: color }),
-        };
+        // 2. CHECK FOR COLLISION: If size/color changed, does the new variant already exist?
+        const targetSize = size !== undefined ? size : currentItem.selectedsize;
+        const targetColor = color !== undefined ? color : currentItem.selectedcolor;
 
-        if (Object.keys(payload).length === 0) {
-            return res.status(400).json({ success: false, message: "No fields to update!" });
-        }
-
-        // 3. Update by primary key
-        const updated = await prisma.productCart.update({
-            where: { id: cartItem.id },
-            data: payload,
-        });
-
-        console.log("UPDATED ROW:", updated);
-
-        // 4. FIX: Verify the user's cart actually exists before trying to return it
-        const userCart = await prisma.cart.findUnique({
-            where: { userid: Number(userid) },
-        });
-
-        if (!userCart) {
-            // The update succeeded but we can't find the cart to return —
-            // return the updated row directly so the frontend can patch locally
-            return res.status(200).json({
-                success: true,
-                message: "Cart item updated successfully",
-                data: { ProductCart: [] },
-                updatedItem: updated,
-            });
-        }
-
-        // 5. Return the full refreshed cart with product details
-        const updatedUserCart = await prisma.cart.findUnique({
-            where: { userid: Number(userid) },
-            include: {
-                ProductCart: {
-                    include: { Product: true },
-                },
-            },
-        });
-
-        return res.status(200).json({
-            success: true,
-            message: "Cart item updated successfully",
-            data: updatedUserCart,
-        });
-
-    } catch (error) {
-        console.log("UPDATE ERROR:", error.message);
-        return res.status(500).json({ success: false, message: error.message });
-    }
-};
-
-// ─── Delete from cart ──────────────────────────────────────────────────────
-exports.deleteCart = async (req, res) => {
-    const { userid, productid } = req.body;
-    console.log("DELETE BODY:", req.body);
-
-    const parseduserid = parseInt(userid);
-    const parsedproductid = parseInt(productid);
-
-    try {
-        const existingCart = await prisma.cart.findUnique({
-            where: { userid: parseduserid },
-        });
-
-        if (!existingCart) {
-            return res.status(400).json({ success: false, message: "User cart does not exist!" });
-        }
-
-        // FIX: Use findFirst instead of findUnique with compound key
-        const existingCartItem = await prisma.productCart.findFirst({
+        const existingVariant = await prisma.productCart.findFirst({
             where: {
-                productid: parsedproductid,
-                cartid: existingCart.id,
-            },
+                cartid: currentItem.cartid,
+                productid: currentItem.productid,
+                selectedsize: targetSize,
+                selectedcolor: targetColor,
+                id: { not: currentItem.id } // Don't match the same row
+            }
         });
 
-        if (!existingCartItem) {
-            return res.status(400).json({ success: false, message: "Cart item does not exist!" });
-        }
-
-        if (existingCartItem.quantity > 1) {
-            // FIX: Update by primary key `id` instead of compound key
+        if (existingVariant) {
+            // MERGE: Update the other row and delete this one
             await prisma.productCart.update({
-                where: { id: existingCartItem.id },
-                data: { quantity: existingCartItem.quantity - 1 },
+                where: { id: existingVariant.id },
+                data: { quantity: existingVariant.quantity + (Number(quantity) || currentItem.quantity) }
             });
+            await prisma.productCart.delete({ where: { id: currentItem.id } });
         } else {
-            // FIX: Delete by primary key `id` instead of compound key
-            await prisma.productCart.delete({
-                where: { id: existingCartItem.id },
+            // NORMAL UPDATE: Update the current row
+            await prisma.productCart.update({
+                where: { id: currentItem.id },
+                data: {
+                    ...(quantity !== undefined && { quantity: Number(quantity) }),
+                    ...(size !== undefined && { selectedsize: size }),
+                    ...(color !== undefined && { selectedcolor: color }),
+                },
             });
         }
 
+        // 3. Return the full refreshed cart (Standardized Response)
         const updatedUserCart = await prisma.cart.findUnique({
-            where: { userid: parseduserid },
-            include: {
-                ProductCart: { include: { Product: true } },
-            },
+            where: { userid: Number(userid) },
+            include: { ProductCart: { include: { Product: true } } },
         });
 
         return res.status(200).json({
@@ -195,7 +117,31 @@ exports.deleteCart = async (req, res) => {
         });
 
     } catch (error) {
-        console.log("DELETE ERROR:", error.message);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ─── Delete from cart ──────────────────────────────────────────────────────
+exports.deleteCart = async (req, res) => {
+    const { userid, cartItemId } = req.body; // Suggest passing cartItemId (primary key) instead of productid
+
+    try {
+        // Delete the specific row directly using its ID
+        await prisma.productCart.delete({
+            where: { id: Number(cartItemId) }
+        });
+
+        const updatedUserCart = await prisma.cart.findUnique({
+            where: { userid: Number(userid) },
+            include: { ProductCart: { include: { Product: true } } },
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Item removed from cart",
+            data: updatedUserCart,
+        });
+    } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
