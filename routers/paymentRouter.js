@@ -4,6 +4,6 @@ const paymentRouter = express.Router();
 const { initializePayment, verifyPayment } = require("../controllers/paymentController");
 const paymentController = require('../controllers/paymentController');
 paymentRouter.post("/initializePayment", isUser, initializePayment);
-// Ensure it looks like this:
-paymentRouter.get("/verifyPayment", paymentController.verifyPayment);
+// paymentRouter.js
+paymentRouter.get("/verifyPayment", isUser, paymentController.verifyPayment);
 module.exports = paymentRouter;
