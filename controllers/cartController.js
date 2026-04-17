@@ -124,26 +124,36 @@ exports.updateCart = async (req, res) => {
     }
 };
 
-// ─── Delete From Cart ──────────────────────────────────────────────────────
 exports.deleteCart = async (req, res) => {
-    // We expect cartItemId (the specific row ID) for a clean delete
+    // 1. Destructure the ID from the body
     const { userid, cartItemId } = req.body;
+
+    // 2. Debug: Check if cartItemId actually exists here
+    console.log("Delete Request - UserID:", userid, "ItemID:", cartItemId);
+
+    if (!cartItemId) {
+        return res.status(400).json({ 
+            success: false, 
+            message: "cartItemId is required to delete an item!" 
+        });
+    }
 
     try {
         await prisma.productCart.delete({
-            where: { id: Number(cartItemId) }
+            where: { 
+                // Ensure this is a Number. If cartItemId is undefined, 
+                // Prisma throws the error you saw.
+                id: Number(cartItemId) 
+            }
         });
 
+        // Return refreshed cart...
         const updatedUserCart = await prisma.cart.findUnique({
             where: { userid: Number(userid) },
             include: { ProductCart: { include: { Product: true } } },
         });
 
-        return res.status(200).json({
-            success: true,
-            message: "Item removed from cart",
-            data: updatedUserCart,
-        });
+        res.status(200).json({ success: true, data: updatedUserCart });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
